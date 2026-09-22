@@ -10,14 +10,7 @@ in the header".
 from dataclasses import dataclass
 from typing import List, Optional
 
-
-@dataclass(frozen=True)
-class Position:
-    line: int
-    column: int
-
-    def __str__(self) -> str:
-        return f"{self.line}:{self.column}"
+from .positions import Position, line_starts, line_text_at, offset_to_position
 
 
 @dataclass(frozen=True)
@@ -55,37 +48,6 @@ class ParseResult:
         return not any(d.severity == "error" for d in self.diagnostics)
 
 
-def _line_starts(text: str) -> List[int]:
-    starts = [0]
-    for i, ch in enumerate(text):
-        if ch == "\n":
-            starts.append(i + 1)
-    return starts
-
-
-def _offset_to_position(offset: int, line_starts: List[int]) -> Position:
-    lo, hi = 0, len(line_starts) - 1
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if line_starts[mid] <= offset:
-            lo = mid
-        else:
-            hi = mid - 1
-    line = lo + 1
-    column = offset - line_starts[lo] + 1
-    return Position(line, column)
-
-
-def _line_text(text: str, line_starts: List[int], line_number: int) -> str:
-    start = line_starts[line_number - 1]
-    end = len(text)
-    for idx in range(start, len(text)):
-        if text[idx] in "\r\n":
-            end = idx
-            break
-    return text[start:end]
-
-
 def parse_cache_control(text: str, base_offset: int = 0) -> ParseResult:
     """Parse a single Cache-Control header value found within `text`.
 
@@ -94,7 +56,7 @@ def parse_cache_control(text: str, base_offset: int = 0) -> ParseResult:
     starts. Everything after `base_offset` up to the next line break
     (outside of a quoted string) is treated as the value.
     """
-    line_starts = _line_starts(text)
+    starts = line_starts(text)
     diagnostics: List[Diagnostic] = []
     directives: List[Directive] = []
 
@@ -108,10 +70,10 @@ def parse_cache_control(text: str, base_offset: int = 0) -> ParseResult:
     value_end = idx
 
     def pos_at(offset: int) -> Position:
-        return _offset_to_position(offset, line_starts)
+        return offset_to_position(offset, starts)
 
     def text_of_line_at(offset: int) -> str:
-        return _line_text(text, line_starts, pos_at(offset).line)
+        return line_text_at(text, starts, pos_at(offset).line)
 
     def add(severity: str, offset: int, message: str) -> None:
         diagnostics.append(Diagnostic(severity, message, pos_at(offset), text_of_line_at(offset)))

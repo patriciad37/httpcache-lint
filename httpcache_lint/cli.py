@@ -9,20 +9,19 @@ import argparse
 import sys
 from typing import List
 
+from .headers import check_age, check_vary
 from .parser import parse_cache_control
 from .rules import check_directives
 
-HEADER_NAME = "cache-control"
 
-
-def _find_header_values(text: str) -> List[int]:
-    """Return the offsets where each Cache-Control header's value starts."""
+def _find_header_value_offsets(text: str, header_name: str) -> List[int]:
+    """Return the offsets where each occurrence of `header_name`'s value starts."""
     offsets = []
     pos = 0
     for line in text.splitlines(keepends=True):
         stripped = line.lstrip(" \t")
         colon = stripped.find(":")
-        if colon != -1 and stripped[:colon].strip().lower() == HEADER_NAME:
+        if colon != -1 and stripped[:colon].strip().lower() == header_name:
             leading = len(line) - len(stripped)
             value_start = leading + colon + 1
             while value_start < len(line) and line[value_start] in " \t":
@@ -33,19 +32,28 @@ def _find_header_values(text: str) -> List[int]:
 
 
 def _run_check(text: str, source_name: str) -> int:
-    offsets = _find_header_values(text)
-    if not offsets:
-        print(f"{source_name}: no Cache-Control header found", file=sys.stderr)
+    cache_control_offsets = _find_header_value_offsets(text, "cache-control")
+    age_offsets = _find_header_value_offsets(text, "age")
+    vary_offsets = _find_header_value_offsets(text, "vary")
+
+    if not cache_control_offsets and not age_offsets and not vary_offsets:
+        print(f"{source_name}: no Cache-Control, Age, or Vary header found", file=sys.stderr)
         return 1
 
-    had_error = False
-    for offset in offsets:
+    diagnostics = []
+    for offset in cache_control_offsets:
         result = parse_cache_control(text, offset)
-        diagnostics = list(result.diagnostics) + check_directives(result)
-        for diagnostic in sorted(diagnostics, key=lambda d: (d.pos.line, d.pos.column)):
-            print(diagnostic.render(source_name))
-            if diagnostic.severity == "error":
-                had_error = True
+        diagnostics += list(result.diagnostics) + check_directives(result)
+    for offset in age_offsets:
+        diagnostics += check_age(text, offset)
+    for offset in vary_offsets:
+        diagnostics += check_vary(text, offset)
+
+    had_error = False
+    for diagnostic in sorted(diagnostics, key=lambda d: (d.pos.line, d.pos.column)):
+        print(diagnostic.render(source_name))
+        if diagnostic.severity == "error":
+            had_error = True
 
     return 1 if had_error else 0
 
@@ -54,7 +62,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="httpcache-lint")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    check = subparsers.add_parser("check", help="validate Cache-Control headers")
+    check = subparsers.add_parser("check", help="validate Cache-Control, Age, and Vary headers")
     check.add_argument("path", nargs="?", help="file to read, or '-' for stdin")
     check.add_argument("--value", help="check a single Cache-Control value directly")
 
