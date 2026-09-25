@@ -9,7 +9,7 @@ import argparse
 import sys
 from typing import List
 
-from .headers import check_age, check_vary
+from .headers import check_age, check_expires, check_vary
 from .parser import parse_cache_control
 from .rules import check_directives
 
@@ -35,9 +35,10 @@ def _run_check(text: str, source_name: str) -> int:
     cache_control_offsets = _find_header_value_offsets(text, "cache-control")
     age_offsets = _find_header_value_offsets(text, "age")
     vary_offsets = _find_header_value_offsets(text, "vary")
+    expires_offsets = _find_header_value_offsets(text, "expires")
 
-    if not cache_control_offsets and not age_offsets and not vary_offsets:
-        print(f"{source_name}: no Cache-Control, Age, or Vary header found", file=sys.stderr)
+    if not cache_control_offsets and not age_offsets and not vary_offsets and not expires_offsets:
+        print(f"{source_name}: no Cache-Control, Age, Vary, or Expires header found", file=sys.stderr)
         return 1
 
     diagnostics = []
@@ -48,6 +49,8 @@ def _run_check(text: str, source_name: str) -> int:
         diagnostics += check_age(text, offset)
     for offset in vary_offsets:
         diagnostics += check_vary(text, offset)
+    for offset in expires_offsets:
+        diagnostics += check_expires(text, offset)
 
     had_error = False
     for diagnostic in sorted(diagnostics, key=lambda d: (d.pos.line, d.pos.column)):
@@ -62,7 +65,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="httpcache-lint")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    check = subparsers.add_parser("check", help="validate Cache-Control, Age, and Vary headers")
+    check = subparsers.add_parser("check", help="validate Cache-Control, Age, Vary, and Expires headers")
     check.add_argument("path", nargs="?", help="file to read, or '-' for stdin")
     check.add_argument("--value", help="check a single Cache-Control value directly")
 

@@ -1,6 +1,6 @@
 """httpcache-lint: a small linter for HTTP cache-control headers."""
 
-from .headers import check_age, check_vary
+from .headers import check_age, check_expires, check_vary
 from .parser import Diagnostic, Directive, ParseResult, Position, parse_cache_control
 from .rules import check_directives
 
@@ -13,6 +13,7 @@ __all__ = [
     "check_directives",
     "check_age",
     "check_vary",
+    "check_expires",
 ]
 
 __version__ = "0.1.0"

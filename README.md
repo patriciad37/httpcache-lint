@@ -1,7 +1,7 @@
 # httpcache-lint
 
-A small library and CLI for validating `Cache-Control`, `Age`, and
-`Vary` headers.
+A small library and CLI for validating `Cache-Control`, `Age`,
+`Vary`, and `Expires` headers.
 
 ## Why
 
@@ -18,9 +18,11 @@ tracks exact positions and reports errors with a line, a column, and a
 caret pointing at the problem, so the mistake is obvious immediately
 instead of inferred from downstream symptoms.
 
-It also checks `Age` (must be a non-negative integer number of seconds)
-and `Vary` (must be `*` on its own, or a comma-separated list of valid
-field-names) whenever they're present, for the same reason.
+It also checks `Age` (must be a non-negative integer number of seconds),
+`Vary` (must be `*` on its own, or a comma-separated list of valid
+field-names), and `Expires` (must be `0` or a valid HTTP-date, with a
+weekday that actually matches the date) whenever they're present, for
+the same reason.
 
 ## Usage
 
@@ -59,13 +61,16 @@ extracted substring, so they line up with what your editor shows you.
 It also works as a library:
 
 ```python
-from httpcache_lint import parse_cache_control, check_directives, check_age
+from httpcache_lint import parse_cache_control, check_directives, check_age, check_expires
 
 result = parse_cache_control("Cache-Control: max-age=abc", base_offset=15)
 for diagnostic in list(result.diagnostics) + check_directives(result):
     print(diagnostic.render("myheader.txt"))
 
 for diagnostic in check_age("Age: -1", base_offset=5):
+    print(diagnostic.render("myheader.txt"))
+
+for diagnostic in check_expires("Expires: 0", base_offset=9):
     print(diagnostic.render("myheader.txt"))
 ```
 
@@ -80,8 +85,8 @@ pip install -e .
 ## Status
 
 Covers the Cache-Control directive grammar and the common
-request/response directives from RFC 9111, plus `Age` and `Vary`
-validation. Not yet covered: `Expires` and `ETag` validation, and
+request/response directives from RFC 9111, plus `Age`, `Vary`, and
+`Expires` validation. Not yet covered: `ETag` validation, and
 distinguishing request-only from response-only Cache-Control
 directives. See the roadmap in commit history for what's next.
 
